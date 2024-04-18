@@ -19,6 +19,12 @@ import {
   ref,
   uploadBytesResumable,
 } from "firebase/storage";
+import {
+  addDoc,
+  collection,
+  getFirestore,
+  serverTimestamp,
+} from "firebase/firestore";
 
 const Header = () => {
   const { data: session } = useSession();
@@ -27,6 +33,9 @@ const Header = () => {
   const [imageFileUrl, setImageFileUrl] = useState(null);
   const filePickerRef = useRef(null);
   const [imageFileUploading, setImageFileUploading] = useState(false);
+  const [postUploading, setPostUploading] = useState(false);
+  const db = getFirestore(app);
+  const [caption, setCaption] = useState("");
 
   const addImageToPost = (e) => {
     const file = e.target.files[0];
@@ -69,6 +78,19 @@ const Header = () => {
         });
       }
     );
+  }
+
+  async function handleSubmit() {
+    setPostUploading(true);
+    const docRef = await addDoc(collection(db, "posts"), {
+      username: session.user.username,
+      caption,
+      profileImg: session.user.image,
+      image: imageFileUrl,
+      timestamp: serverTimestamp(),
+    });
+    setPostUploading(false);
+    setIsOpen(false);
   }
   return (
     <div className=" shadow-sm border-b sticky top-0 bg-white z-30 p-2">
@@ -149,13 +171,20 @@ const Header = () => {
 
           <input
             type="text"
-            maxLength="50"
+            maxLength="150"
             placeholder="Please add your caption..."
             className="m-4 border-none text-center w-full focus:ring-0 outline-none"
+            onChange={(e) => setCaption(e.target.value)}
           />
 
           <button
-            disabled
+            onClick={handleSubmit}
+            disabled={
+              !selectedFile ||
+              caption.trim() === "" ||
+              postUploading ||
+              imageFileUploading
+            }
             className="bg-green-600 text-white w-full py-1 rounded-md flex items-center justify-center gap-2 hover:brightness-105 disabled:bg-green-200 disabled:cursor-not-allowed disabled:hover:brightness-100"
           >
             <IoMdSend className="h-6 w-6" /> Upload Post
