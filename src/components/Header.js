@@ -1,7 +1,7 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import instagramName from "/public/Instagram_name.webp";
 import name from "/public/name.jpeg";
 import { FcGoogle } from "react-icons/fc";
@@ -12,11 +12,64 @@ import { IoCreateOutline } from "react-icons/io5";
 import { CiImageOn } from "react-icons/ci";
 import { IoMdClose } from "react-icons/io";
 import { IoMdSend } from "react-icons/io";
+import { app } from "@/firebase";
+import {
+  getDownloadURL,
+  getStorage,
+  ref,
+  uploadBytesResumable,
+} from "firebase/storage";
 
 const Header = () => {
   const { data: session } = useSession();
   const [isOpen, setIsOpen] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [imageFileUrl, setImageFileUrl] = useState(null);
+  const filePickerRef = useRef(null);
+  const [imageFileUploading, setImageFileUploading] = useState(false);
 
+  const addImageToPost = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setSelectedFile(file);
+      setImageFileUrl(URL.createObjectURL(file));
+      //console.log(imageFileUrl);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedFile) {
+      uploadImageToStorage();
+    }
+  }, [selectedFile]);
+
+  async function uploadImageToStorage() {
+    setImageFileUploading(true);
+    const storage = getStorage(app);
+    const fileName = new Date().getTime() + "-" + selectedFile.name;
+    const storageRef = ref(storage, fileName);
+    const uploadTask = uploadBytesResumable(storageRef, selectedFile);
+    uploadTask.on(
+      "state_changed",
+      (snapshot) => {
+        const progress =
+          (snapshot?.bytesTransferred / snapshot?.totalBytes) * 100;
+        console.log("Upload is" + progress + "% done");
+      },
+      (error) => {
+        console.error(error);
+        setImageFileUploading(false);
+        setImageFileUrl(null);
+        setSelectedFile(null);
+      },
+      () => {
+        getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+          setImageFileUploading(downloadURL);
+          setImageFileUploading(false);
+        });
+      }
+    );
+  }
   return (
     <div className=" shadow-sm border-b sticky top-0 bg-white z-30 p-2">
       <div className=" flex justify-between items-center max-w-6xl mx-auto ">
@@ -67,14 +120,40 @@ const Header = () => {
           ariaHideApp={false}
         >
           <div className="flex flex-col justify-center items-center h-[100%]">
-            <CiImageOn className=" text-5xl text-blue-500 cursor-pointer" />
+            {selectedFile ? (
+              <Image
+                onClick={() => setSelectedFile(null)}
+                src={imageFileUrl}
+                alt="selectedFile"
+                className={` max-h-[250px] w-full object-over cursor-pointer ${
+                  imageFileUploading ? "animate-pulse" : ""
+                } `}
+                width={100}
+                height={100}
+              />
+            ) : (
+              <CiImageOn
+                onClick={() => filePickerRef.current.click()}
+                className=" text-5xl text-blue-500 cursor-pointer"
+              />
+            )}
+
+            <input
+              hidden
+              ref={filePickerRef}
+              type="file"
+              accept="image/*"
+              onChange={addImageToPost}
+            />
           </div>
+
           <input
             type="text"
             maxLength="50"
             placeholder="Please add your caption..."
             className="m-4 border-none text-center w-full focus:ring-0 outline-none"
           />
+
           <button
             disabled
             className="bg-green-600 text-white w-full py-1 rounded-md flex items-center justify-center gap-2 hover:brightness-105 disabled:bg-green-200 disabled:cursor-not-allowed disabled:hover:brightness-100"
